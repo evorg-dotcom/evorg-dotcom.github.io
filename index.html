@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Evan Alford, Security+ certified SOC analyst. Threat detection, incident response, and a self-built purple-team lab in Microsoft Defender for Endpoint.">
+<meta property="og:title" content="Evan Alford, SOC Analyst">
+<meta property="og:description" content="Security+ certified analyst. Sentinel, KQL, MITRE ATT&CK, purple-team lab.">
+<title>Evan Alford, SOC Analyst</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a single case-file column. Header readout, then sections filed like an investigation report, with ATT&CK IDs and timestamps as real data. */
+:root {
+  --paper: #eef1f4;
+  --sheet: #f8fafb;
+  --ink: #131c25;
+  --muted: #55626f;
+  --rule: #cdd5dd;
+  --accent: #1d5a86;
+  --accent-soft: #dce8f2;
+  --sev-high: #b5462a;
+  --sev-med: #b07a12;
+  --sev-ok: #2e7d5b;
+  --display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f151b; --sheet: #151d25; --ink: #e3e9ef; --muted: #93a1ae; --rule: #2a3642;
+    --accent: #7db4dc; --accent-soft: #1b2c3b; --sev-high: #e2866c; --sev-med: #d9ad55; --sev-ok: #6cc29b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0f151b; --sheet: #151d25; --ink: #e3e9ef; --muted: #93a1ae; --rule: #2a3642;
+  --accent: #7db4dc; --accent-soft: #1b2c3b; --sev-high: #e2866c; --sev-med: #d9ad55; --sev-ok: #6cc29b;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 1rem;
+  line-height: 1.6;
+  padding-inline: 16px;
+  padding-block: 0 4rem;
+}
+.wrap { max-width: 980px; margin-inline: auto; }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+/* top bar */
+.bar {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem 1.5rem;
+  padding-block: 1rem; border-bottom: 1px solid var(--rule);
+  font-family: var(--mono); font-size: .75rem; color: var(--muted); letter-spacing: .02em;
+}
+.bar nav { display: flex; flex-wrap: wrap; gap: 1.25rem; }
+.bar nav a { color: var(--muted); text-decoration: none; }
+.bar nav a:hover { color: var(--accent); }
+
+/* hero */
+.hero { display: grid; grid-template-columns: 1.35fr 1fr; gap: 2.5rem; padding-block: 3.5rem 3rem; align-items: start; }
+.hero > * { min-width: 0; }
+.eyebrow { font-family: var(--mono); font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 0 0 1rem; }
+h1 {
+  font-family: var(--display); font-stretch: 125%; font-weight: 800;
+  font-size: clamp(2.6rem, 7vw, 4.4rem); line-height: .95; letter-spacing: -.02em;
+  margin: 0 0 1.25rem; text-wrap: balance;
+}
+.role { font-family: var(--display); font-stretch: 100%; font-weight: 500; font-size: 1.2rem; margin: 0 0 1.25rem; color: var(--ink); }
+.lede { max-width: 58ch; color: var(--muted); margin: 0 0 1.75rem; }
+.links { display: flex; flex-wrap: wrap; gap: .6rem; }
+.btn {
+  display: inline-flex; align-items: center; gap: .5rem;
+  font-family: var(--mono); font-size: .8rem; text-decoration: none;
+  padding: .55rem .9rem; border: 1px solid var(--rule); background: var(--sheet); color: var(--ink);
+  cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.btn.primary:hover { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+
+/* readout panel */
+.readout { background: var(--sheet); border: 1px solid var(--rule); font-family: var(--mono); font-size: .8rem; }
+.readout header { display: flex; justify-content: space-between; padding: .6rem .9rem; border-bottom: 1px solid var(--rule); color: var(--muted); font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; }
+.readout dl { margin: 0; }
+.readout .row { display: grid; grid-template-columns: 1fr auto; gap: 1rem; padding: .6rem .9rem; border-bottom: 1px dashed var(--rule); }
+.readout .row:last-child { border-bottom: 0; }
+.readout dt { color: var(--muted); }
+.readout dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
+.dot { display: inline-block; width: .5rem; height: .5rem; border-radius: 50%; background: var(--sev-ok); margin-right: .4rem; vertical-align: middle; }
+
+/* sections */
+section { padding-block: 2.75rem; border-top: 1px solid var(--rule); }
+.sec-head { display: grid; grid-template-columns: 200px 1fr; gap: 2rem; }
+.sec-head > * { min-width: 0; }
+h2 {
+  font-family: var(--display); font-stretch: 112%; font-weight: 700; font-size: 1.05rem;
+  letter-spacing: .04em; text-transform: uppercase; margin: 0; line-height: 1.3;
+}
+h2 small { display: block; font-family: var(--mono); font-weight: 400; font-size: .7rem; color: var(--muted); letter-spacing: .04em; text-transform: none; margin-top: .35rem; }
+h3 { font-family: var(--display); font-stretch: 100%; font-weight: 650; font-size: 1.2rem; margin: 0; line-height: 1.3; text-wrap: balance; }
+.meta { font-family: var(--mono); font-size: .75rem; color: var(--muted); margin: .25rem 0 .9rem; }
+ul.points { margin: 0; padding-left: 1.1rem; display: grid; gap: .5rem; max-width: 70ch; }
+ul.points li::marker { color: var(--accent); }
+
+.entries { display: grid; gap: 2.25rem; }
+.entry { border-left: 3px solid var(--rule); padding-left: 1.25rem; }
+.entry.flag { border-left-color: var(--accent); }
+.entry .top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .25rem 1rem; align-items: baseline; }
+.tag { font-family: var(--mono); font-size: .7rem; padding: .15rem .45rem; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+
+/* attack chain */
+.chain-wrap { margin-top: 1.25rem; overflow-x: auto; }
+.chain { display: flex; gap: 0; min-width: 640px; list-style: none; padding: 0; margin: 0; }
+.chain li { flex: 1; position: relative; padding: .7rem .8rem .7rem 1.2rem; background: var(--sheet); border: 1px solid var(--rule); border-left: 0; font-size: .8rem; line-height: 1.35; }
+.chain li:first-child { border-left: 1px solid var(--rule); padding-left: .8rem; }
+.chain li:not(:last-child)::after {
+  content: ""; position: absolute; right: -7px; top: 50%; width: 12px; height: 12px;
+  background: var(--sheet); border-top: 1px solid var(--rule); border-right: 1px solid var(--rule);
+  transform: translateY(-50%) rotate(45deg); z-index: 1;
+}
+.chain .tid { display: block; font-family: var(--mono); font-size: .7rem; color: var(--sev-high); margin-bottom: .2rem; }
+.chain-cap { font-family: var(--mono); font-size: .7rem; color: var(--muted); margin-top: .6rem; }
+
+/* lab phases */
+.phases { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin-top: 1rem; }
+.phase { background: var(--sheet); padding: 1rem 1.1rem; min-width: 0; }
+.phase .lbl { font-family: var(--mono); font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; margin: 0 0 .4rem; }
+.phase.red .lbl { color: var(--sev-high); }
+.phase.blue .lbl { color: var(--accent); }
+.phase p { margin: 0; font-size: .92rem; }
+
+/* skills */
+.skills { display: grid; gap: 1.25rem; }
+.skills .grp { display: grid; grid-template-columns: 180px 1fr; gap: 1rem; }
+.skills .grp > * { min-width: 0; }
+.skills .k { font-family: var(--mono); font-size: .75rem; color: var(--muted); padding-top: .2rem; }
+.chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+.chip { font-size: .82rem; padding: .2rem .55rem; border: 1px solid var(--rule); background: var(--sheet); }
+
+/* certs */
+.certs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.cert { background: var(--sheet); border: 1px solid var(--rule); padding: 1rem; display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
+.cert .st { font-family: var(--mono); font-size: .7rem; letter-spacing: .05em; text-transform: uppercase; }
+.cert .st.ok { color: var(--sev-ok); }
+.cert .st.wip { color: var(--sev-med); }
+.cert strong { font-family: var(--display); font-weight: 650; font-size: 1.02rem; }
+.cert span.d { font-size: .85rem; color: var(--muted); }
+.note { margin-top: 1rem; font-size: .9rem; color: var(--muted); max-width: 70ch; }
+
+/* education */
+.edu { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+.edu > div { min-width: 0; }
+
+/* contact */
+.contact-line { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin-top: 1rem; }
+.addr { font-family: var(--mono); font-size: .9rem; padding: .55rem .9rem; border: 1px dashed var(--rule); user-select: all; word-break: break-all; }
+#copy-status { font-family: var(--mono); font-size: .75rem; color: var(--sev-ok); min-height: 1em; }
+
+footer { border-top: 1px solid var(--rule); padding-top: 1.25rem; font-family: var(--mono); font-size: .7rem; color: var(--muted); }
+
+@media (max-width: 760px) {
+  .hero { grid-template-columns: 1fr; padding-block: 2.25rem 2rem; gap: 2rem; }
+  .sec-head { grid-template-columns: 1fr; gap: 1.25rem; }
+  .phases, .edu { grid-template-columns: 1fr; }
+  .certs { grid-template-columns: 1fr; }
+  .skills .grp { grid-template-columns: 1fr; gap: .4rem; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .btn, .bar nav a { transition: color .15s, border-color .15s, background .15s; }
+}
+</style>
+<style>html{color-scheme:light}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <span>evan.alford / palm coast, fl / open to relocation</span>
+    <nav aria-label="Sections">
+      <a href="#training">Training</a>
+      <a href="#lab">Lab</a>
+      <a href="#experience">Experience</a>
+      <a href="#skills">Skills</a>
+      <a href="#contact">Contact</a>
+    </nav>
+  </div>
+
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Security+ certified &middot; Tier 1 SOC candidate</p>
+      <h1>Evan Alford</h1>
+      <p class="role">SOC Analyst. Threat detection and incident response.</p>
+      <p class="lede">I spent ten months in a supervised blue-team program triaging Microsoft Sentinel alerts, writing KQL to pivot across log sources, and mapping detections to MITRE ATT&amp;CK. Senior analysts reviewed my investigation reports. I also handled internal IT support for a Fortune 100 company, and I run my own purple-team lab where I attack my endpoints and then hunt the activity blind from the defender side.</p>
+      <div class="links">
+        <a class="btn primary" href="mailto:evanalford0@gmail.com">Email me</a>
+        <a class="btn" href="https://www.linkedin.com/in/evan-alford22232" target="_blank" rel="noopener">LinkedIn &#8599;</a>
+        <a class="btn" href="https://github.com/evorg-dotcom" target="_blank" rel="noopener">GitHub &#8599;</a>
+      </div>
+    </div>
+
+    <aside class="readout" aria-label="Summary figures">
+      <header><span>Analyst readout</span><span><span class="dot"></span>active</span></header>
+      <dl>
+        <div class="row"><dt>Security+ SY0-701</dt><dd>Active</dd></div>
+        <div class="row"><dt>Alerts triaged per day</dt><dd>50+</dd></div>
+        <div class="row"><dt>False positives cut (KQL tuning)</dt><dd>&minus;20%</dd></div>
+        <div class="row"><dt>Custom Splunk detections</dt><dd>15+</dd></div>
+        <div class="row"><dt>HackerDNA rank, United States</dt><dd>#71</dd></div>
+        <div class="row"><dt>B.S. Cybersecurity GPA</dt><dd>3.8</dd></div>
+      </dl>
+    </aside>
+  </header>
+
+  <section id="training">
+    <div class="sec-head">
+      <h2>Hands-on training<small>supervised SOC environments</small></h2>
+      <div class="entries">
+        <article class="entry flag">
+          <div class="top">
+            <h3>Blue Team Analyst Program, Ryvora Cyber Range</h3>
+            <span class="tag">Sep 2024 &ndash; Jun 2025</span>
+          </div>
+          <p class="meta">Supervised simulated SOC environment &middot; Microsoft Sentinel, Splunk, Defender for Endpoint, M365 Defender</p>
+          <ul class="points">
+            <li>Triaged 50+ security alerts a day across Sentinel and Splunk. Refined KQL query logic to cut false positives by 20%, and escalated confirmed incidents with reproducible timelines.</li>
+            <li>Spotted a credential-compromise pattern in Sentinel, disabled the affected account, and escalated within minutes. The takeover was contained before any lateral movement.</li>
+            <li>Ran endpoint investigations in Defender for Endpoint and M365 Defender. Pulled IOCs (IPs, file hashes, command-line artifacts) and turned them into reusable detection logic.</li>
+            <li>Mapped confirmed detections to ATT&amp;CK techniques and wrote investigation reports on root cause, impact, and remediation for senior analyst review.</li>
+          </ul>
+          <div class="chain-wrap">
+            <ol class="chain" aria-label="Simulated Azure intrusion chain reconstructed during investigations">
+              <li><span class="tid">T1046</span>Nmap reconnaissance</li>
+              <li><span class="tid">T1110</span>Brute-force authentication</li>
+              <li><span class="tid">TA0004</span>Privilege escalation</li>
+              <li><span class="tid">T1059.001</span>Malicious PowerShell</li>
+            </ol>
+          </div>
+          <p class="chain-cap">Intrusion chain rebuilt end to end in full-cycle investigations of simulated Azure attacks, with MITRE ATT&amp;CK IDs.</p>
+        </article>
+
+        <article class="entry">
+          <div class="top">
+            <h3>Cyber Defense Professional Program, University of Central Florida</h3>
+            <span class="tag">Mar 2024 &ndash; Feb 2025</span>
+          </div>
+          <p class="meta">36 hrs/week &middot; blue and red team &middot; GPA 4.1</p>
+          <ul class="points">
+            <li>Monitored simulated enterprise traffic across 100+ endpoints, built 15+ custom detection queries in Splunk, and confirmed findings with Wireshark packet analysis.</li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="lab">
+    <div class="sec-head">
+      <h2>Projects<small>self-directed, ongoing</small></h2>
+      <div class="entries">
+        <article class="entry flag">
+          <div class="top">
+            <h3>Purple-Team Threat Hunting Lab</h3>
+            <span class="tag">Defender for Endpoint &middot; KQL</span>
+          </div>
+          <p class="meta">A two-phase lab that attacks itself and then investigates itself</p>
+          <div class="phases">
+            <div class="phase red">
+              <p class="lbl">Phase 1 &middot; Attack</p>
+              <p>Run adversary activity against instrumented Windows endpoints to generate live IOCs.</p>
+            </div>
+            <div class="phase blue">
+              <p class="lbl">Phase 2 &middot; Hunt</p>
+              <p>Hunt that activity in MDE advanced hunting with KQL and rebuild the attack chain from telemetry alone.</p>
+            </div>
+          </div>
+          <ul class="points" style="margin-top:1rem">
+            <li>Working both sides shows what the SIEM never saw. I document which actions raised alerts and which passed silently, then write detection logic to close those gaps.</li>
+          </ul>
+        </article>
+
+        <article class="entry">
+          <div class="top">
+            <h3>Capture the Flag: HackerDNA and TryHackMe</h3>
+            <span class="tag">#71 in the U.S. on HackerDNA</span>
+          </div>
+          <p class="meta">Web exploitation &middot; network penetration testing &middot; Linux privilege escalation &middot; forensics</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="experience">
+    <div class="sec-head">
+      <h2>Experience<small>Publix Super Markets</small></h2>
+      <div class="entries">
+        <article class="entry">
+          <div class="top">
+            <h3>IT Customer Support</h3>
+            <span class="tag">Feb 2025 &ndash; Dec 2025</span>
+          </div>
+          <p class="meta">Lakeland, FL &middot; ServiceNow ITSM</p>
+          <ul class="points">
+            <li>Resolved technical support requests from internal staff by phone and email, tracking each issue to closure in ServiceNow.</li>
+            <li>Triaged incoming tickets by scope, resolved what fell within my authority, and routed the rest.</li>
+            <li>Escalated issues to specialized teams with reproduction steps and impact context to speed up handoffs.</li>
+          </ul>
+        </article>
+        <article class="entry">
+          <div class="top">
+            <h3>Team Lead, Deli</h3>
+            <span class="tag">Feb 2023 &ndash; Feb 2025; Dec 2025 &ndash; present</span>
+          </div>
+          <p class="meta">Palm Coast, FL</p>
+          <ul class="points">
+            <li>Promoted from Deli Clerk to Team Lead for reliability and initiative. I coordinate team members across shifts in a high-volume department.</li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="skills">
+    <div class="sec-head">
+      <h2>Skills<small>tools and frameworks</small></h2>
+      <div class="skills">
+        <div class="grp">
+          <div class="k">Security operations</div>
+          <div class="chips">
+            <span class="chip">SIEM monitoring &amp; alert triage</span><span class="chip">Incident response</span><span class="chip">Endpoint investigation</span><span class="chip">Threat hunting</span><span class="chip">Log analysis &amp; correlation</span><span class="chip">IOC extraction</span><span class="chip">Detection logic</span>
+          </div>
+        </div>
+        <div class="grp">
+          <div class="k">Tools</div>
+          <div class="chips">
+            <span class="chip">Microsoft Sentinel</span><span class="chip">Defender for Endpoint</span><span class="chip">M365 Defender</span><span class="chip">Splunk</span><span class="chip">KQL</span><span class="chip">Wireshark</span><span class="chip">Nmap</span><span class="chip">ServiceNow</span><span class="chip">Active Directory</span><span class="chip">Kali Linux</span><span class="chip">Git / GitHub</span>
+          </div>
+        </div>
+        <div class="grp">
+          <div class="k">Frameworks &amp; platforms</div>
+          <div class="chips">
+            <span class="chip">MITRE ATT&amp;CK</span><span class="chip">Cyber Kill Chain</span><span class="chip">NIST CSF</span><span class="chip">Microsoft Azure</span><span class="chip">Windows Server</span><span class="chip">Linux</span><span class="chip">TCP/IP</span><span class="chip">DNS</span><span class="chip">DHCP</span><span class="chip">VLANs</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="certs">
+    <div class="sec-head">
+      <h2>Certifications<small>&amp; eligibility</small></h2>
+      <div>
+        <div class="certs">
+          <div class="cert">
+            <span class="st ok">Active &middot; Jun 2025</span>
+            <strong>CompTIA Security+ (SY0-701)</strong>
+            <span class="d">Meets DoD 8140/8570 IAT Level II</span>
+          </div>
+          <div class="cert">
+            <span class="st wip">In progress</span>
+            <strong>CompTIA Network+</strong>
+            <span class="d">Networking fundamentals</span>
+          </div>
+          <div class="cert">
+            <span class="st wip">In progress</span>
+            <strong>Cisco CCNA</strong>
+            <span class="d">Routing, switching, network security</span>
+          </div>
+        </div>
+        <p class="note">U.S. citizen, eligible for Controlled Unclassified Information (CUI) access and clearance sponsorship.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="education">
+    <div class="sec-head">
+      <h2>Education</h2>
+      <div class="edu">
+        <div>
+          <h3>B.S., Cybersecurity</h3>
+          <p class="meta">Daytona State College &middot; expected Aug 2028 &middot; GPA 3.8</p>
+        </div>
+        <div>
+          <h3>Cyber Defense Professional Certificate</h3>
+          <p class="meta">University of Central Florida &middot; completed Feb 2025 &middot; GPA 4.1</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="contact">
+    <div class="sec-head">
+      <h2>Contact</h2>
+      <div>
+        <p style="margin:0; max-width:60ch">I'm looking for a Tier 1 SOC analyst role. I'm based in Palm Coast, Florida and open to relocating. Email is the best way to reach me.</p>
+        <div class="contact-line">
+          <span class="addr" id="email">evanalford0@gmail.com</span>
+          <button class="btn" type="button" id="copy-btn">Copy email</button>
+          <a class="btn" href="https://www.linkedin.com/in/evan-alford22232" target="_blank" rel="noopener">LinkedIn &#8599;</a>
+          <span id="copy-status" aria-live="polite"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>&copy; 2026 Evan Alford</footer>
+</div>
+
+<script>
+(function () {
+  var btn = document.getElementById('copy-btn');
+  var status = document.getElementById('copy-status');
+  var email = document.getElementById('email');
+  function selectText() {
+    var r = document.createRange(); r.selectNodeContents(email);
+    var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  }
+  btn.addEventListener('click', function () {
+    var text = email.textContent.trim();
+    try {
+      navigator.clipboard.writeText(text).then(function () {
+        status.textContent = 'Copied';
+      }, function () { selectText(); status.textContent = 'Selected. Press Ctrl+C to copy.'; });
+    } catch (e) { selectText(); status.textContent = 'Selected. Press Ctrl+C to copy.'; }
+  });
+})();
+</script>
+</body>
+</html>
